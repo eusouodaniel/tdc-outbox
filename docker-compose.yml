@@ -1,0 +1,68 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:alpine3.16
+    restart: always
+    environment:
+      TZ: "America/Recife"
+      POSTGRES_USER: "root"
+      POSTGRES_PASSWORD: "root"
+      POSTGRES_DB: "tdc_outbox"
+    ports:
+      - 5432:5432
+    networks:
+      - tdc-outbox-network
+  
+  rabbitmq:
+    build:
+      context: ./rabbitmq
+    restart: always
+    ports:
+      - 15672:15672
+      - 5672:5672
+    networks:
+      - tdc-outbox-network
+  
+  adminer:
+    image: adminer
+    ports:
+      - 8080:8080
+    networks:
+      - tdc-outbox-network
+
+  user-service:
+    build:
+      context: ./user
+    restart: always
+    environment:
+      TZ: "America/Recife"
+      spring.datasource.url: jdbc:postgresql://db:5432/tdc_outbox
+    ports:
+      - 8081:8081
+    networks:
+      - tdc-outbox-network
+    depends_on:
+      - db
+      - rabbitmq
+
+  recommendation-service:
+    build:
+      context: "./recommendation"
+    restart: always
+    environment:
+      amqp_hostname: rabbitmq
+      amqp_port: 5672
+      amqp_username: admin
+      amqp_password: admin
+      user_queue: user_created
+    ports:
+      - 3000:3000
+    networks:
+      - tdc-outbox-network
+    depends_on:
+      - rabbitmq
+
+networks:
+  tdc-outbox-network:
+    driver: bridge
